@@ -14,8 +14,9 @@ from sources.nnunet.inference.predict import predict_from_folder
 
 MODEL_DIR = 'models/Task770_ISLES_preprocessed_DWI/nnUNetTrainerV2__nnUNetPlans_pretrained_nnUNetData_plans_v2.1'
 MODALITIES = ['DWI']
+nnUNet_CHKPOINT='model_best'
 nnUNet_CHKPOINT='model_final_checkpoint'
-NUM_PROCESSES=min(1, os.cpu_count())
+NUM_PROCESSES=min(32, os.cpu_count())
 
 DEFAULT_INPUT_PATH = Path("/input")
 DEFAULT_ALGORITHM_OUTPUT_IMAGES_PATH = Path("/output/images/")
