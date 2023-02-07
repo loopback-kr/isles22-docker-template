@@ -1,6 +1,4 @@
-FROM python:3.9-slim
-
-
+FROM pytorch/pytorch:1.11.0-cuda11.3-cudnn8-runtime
 
 RUN groupadd -r algorithm && useradd -m --no-log-init -r -g algorithm algorithm
 
@@ -13,13 +11,12 @@ WORKDIR /opt/algorithm
 
 ENV PATH="/home/algorithm/.local/bin:${PATH}"
 
-RUN python -m pip install --user -U pip
+RUN pip install -U pip
+COPY requirements.txt /opt/algorithm/
+RUN pip install --no-cache-dir --user -r requirements.txt
 
-
-
-COPY --chown=algorithm:algorithm requirements.txt /opt/algorithm/
-RUN python -m pip install --user -rrequirements.txt
-
+COPY --chown=algorithm:algorithm models /opt/algorithm/models
+COPY --chown=algorithm:algorithm sources /opt/algorithm/sources
 COPY --chown=algorithm:algorithm process.py /opt/algorithm/
 
 ENTRYPOINT python -m process $0 $@
