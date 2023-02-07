@@ -1,15 +1,31 @@
-import SimpleITK
-import numpy as np
-import json
-import os
+# Python Built-in libraries
+import os, sys, importlib, json, csv, re, random, numpy as np, SimpleITK
+from os.path import join, basename, exists, splitext, dirname, isdir
 from pathlib import Path
+from shutil import copy, copytree, rmtree
+from glob import glob, iglob
+from tqdm import tqdm, trange
+from tqdm.contrib import tzip
+# Medical imaging libraries
+import nibabel as nib, SimpleITK as sitk
+# nnUNet
+sys.path.append('sources')
+from sources.nnunet.inference.predict import predict_from_folder
+
+MODEL_DIR = 'models/Task770_ISLES_preprocessed_DWI/nnUNetTrainerV2__nnUNetPlans_pretrained_nnUNetData_plans_v2.1'
+MODALITIES = ['DWI']
+nnUNet_CHKPOINT='model_final_checkpoint'
+NUM_PROCESSES=min(1, os.cpu_count())
+
 DEFAULT_INPUT_PATH = Path("/input")
 DEFAULT_ALGORITHM_OUTPUT_IMAGES_PATH = Path("/output/images/")
 DEFAULT_ALGORITHM_OUTPUT_FILE_PATH = Path("/output/results.json")
-
+MODALITIES = { i : modal for i, modal in enumerate(MODALITIES)}
+nnUNet_INPUT_DIR = 'tmp/imagesTs'
+nnUNet_OUTPUT_DIR = 'tmp/outputTs'
 
 # todo change with your team-name
-class ThresholdModel():
+class POBOTRI():
     def __init__(self,
                  input_path: Path = DEFAULT_INPUT_PATH,
                  output_path: Path = DEFAULT_ALGORITHM_OUTPUT_IMAGES_PATH):
@@ -52,12 +68,36 @@ class ThresholdModel():
         ################################################################################################################
         #################################### Beginning of your prediction method. ######################################
         # todo replace with your best model here!
-        # As an example, we'll segment the DWI using a 99th-percentile intensity cutoff.
-
-        dwi_image_data = SimpleITK.GetArrayFromImage(dwi_image)
-        dwi_cutoff = np.percentile(dwi_image_data[dwi_image_data > 0], 99)
-        prediction = dwi_image_data > dwi_cutoff
-
+        
+        # Convert *.mha to *.nii.gz
+        os.makedirs(nnUNet_INPUT_DIR, exist_ok=True)
+        os.makedirs(nnUNet_OUTPUT_DIR, exist_ok=True)
+        for k, v in MODALITIES.items():
+            sitk.WriteImage(input_data[f'{v.lower()}_image'], str(Path(nnUNet_INPUT_DIR, f'sample_{k:04d}.nii.gz')))
+        
+        copy(Path(MODEL_DIR, 'fold_0', 'postprocessing.json'), Path(MODEL_DIR, 'postprocessing.json'))
+        predict_from_folder(
+            model=MODEL_DIR,
+            input_folder=nnUNet_INPUT_DIR,
+            output_folder=nnUNet_OUTPUT_DIR,
+            folds=None,
+            save_npz=True,
+            num_threads_preprocessing=NUM_PROCESSES,
+            num_threads_nifti_save=NUM_PROCESSES,
+            lowres_segmentations=None,
+            part_id=0,
+            num_parts=1,
+            tta=True,
+            overwrite_existing=True,
+            mode="normal",
+            overwrite_all_in_gpu=None,
+            mixed_precision=True,
+            step_size=0.5,
+            checkpoint_name=nnUNet_CHKPOINT,
+        )
+        # merge([step2_2d_dir, step2_3d_dir],step2_dir,2,True,None)
+        prediction = np.squeeze(sitk.GetArrayFromImage(sitk.ReadImage(glob(str(Path(nnUNet_OUTPUT_DIR, '*.nii.gz'))))))
+        
         #################################### End of your prediction method. ############################################
         ################################################################################################################
 
@@ -140,4 +180,4 @@ class ThresholdModel():
 
 if __name__ == "__main__":
     # todo change with your team-name
-    ThresholdModel().process()
+    POBOTRI().process()
