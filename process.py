@@ -11,8 +11,10 @@ import nibabel as nib, SimpleITK as sitk
 # nnUNet
 sys.path.append('sources')
 from sources.nnunet.inference.predict import predict_from_folder
+from sources.nnunet.inference.ensemble_predictions import merge
 
-MODEL_DIR = 'models/Task500/nnUNetTrainerV2__nnUNetPlans_pretrained_nnUNetData_plans_v2.1'
+MODEL_DIRS = [
+]
 MODALITIES = ['DWI']
 # nnUNet_CHKPOINT='model_best'
 nnUNet_CHKPOINT='model_final_checkpoint'
@@ -45,6 +47,8 @@ class POBOTRI():
             self._algorithm_output_path = self._output_path / 'stroke-lesion-segmentation'
             self._output_file = DEFAULT_ALGORITHM_OUTPUT_FILE_PATH
             self._case_results = []
+        self.nnUNet_INPUT_DIR = nnUNet_INPUT_DIR
+        self.nnUNet_OUTPUT_DIR = nnUNet_OUTPUT_DIR
 
     def predict(self, input_data):
         """
@@ -71,34 +75,70 @@ class POBOTRI():
         # todo replace with your best model here!
         
         # Convert *.mha to *.nii.gz
-        os.makedirs(nnUNet_INPUT_DIR, exist_ok=True)
-        os.makedirs(nnUNet_OUTPUT_DIR, exist_ok=True)
+        os.makedirs(self.nnUNet_INPUT_DIR, exist_ok=True)
+        os.makedirs(self.nnUNet_OUTPUT_DIR, exist_ok=True)
         for k, v in MODALITIES.items():
-            sitk.WriteImage(input_data[f'{v.lower()}_image'], str(Path(nnUNet_INPUT_DIR, f'sample_{k:04d}.nii.gz')))
+            sitk.WriteImage(input_data[f'{v.lower()}_image'], str(Path(self.nnUNet_INPUT_DIR, f'sample_{k:04d}.nii.gz')))
         
-        copy(Path(MODEL_DIR, 'fold_0', 'postprocessing.json'), Path(MODEL_DIR, 'postprocessing.json'))
-        predict_from_folder(
-            model=MODEL_DIR,
-            input_folder=nnUNet_INPUT_DIR,
-            output_folder=nnUNet_OUTPUT_DIR,
-            folds=None,
-            save_npz=True,
-            num_threads_preprocessing=NUM_PROCESSES,
-            num_threads_nifti_save=NUM_PROCESSES,
-            lowres_segmentations=None,
-            part_id=0,
-            num_parts=1,
-            tta=True,
-            overwrite_existing=True,
-            mode="normal",
-            overwrite_all_in_gpu=None,
-            mixed_precision=True,
-            step_size=0.5,
-            checkpoint_name=nnUNet_CHKPOINT,
-        )
-        # merge([step2_2d_dir, step2_3d_dir],step2_dir,2,True,None)
-        prediction = np.squeeze(sitk.GetArrayFromImage(sitk.ReadImage(glob(str(Path(nnUNet_OUTPUT_DIR, '*.nii.gz'))))))
-        
+        if len(MODEL_DIRS) == 1: # Single model prediction
+            MODEL_DIR = MODEL_DIRS[0]
+            nnUNet_OUTPUT_DIR = str(Path(self.nnUNet_OUTPUT_DIR, MODEL_DIR.split('/')[1]))
+            copy(Path(MODEL_DIR, 'fold_0', 'postprocessing.json'), Path(MODEL_DIR, 'postprocessing.json'))
+            
+            predict_from_folder(
+                model=MODEL_DIR,
+                input_folder=self.nnUNet_INPUT_DIR,
+                output_folder=nnUNet_OUTPUT_DIR,
+                folds=None,
+                save_npz=True,
+                num_threads_preprocessing=NUM_PROCESSES,
+                num_threads_nifti_save=NUM_PROCESSES,
+                lowres_segmentations=None,
+                part_id=0,
+                num_parts=1,
+                tta=True,
+                overwrite_existing=True,
+                mode="normal",
+                overwrite_all_in_gpu=None,
+                mixed_precision=True,
+                step_size=0.5,
+                checkpoint_name=nnUNet_CHKPOINT,
+            )
+
+            prediction = np.squeeze(sitk.GetArrayFromImage(sitk.ReadImage(glob(str(Path(nnUNet_OUTPUT_DIR, '*.nii.gz'))))))
+
+        else: # Ensemble predictions
+            for MODEL_DIR in MODEL_DIRS:
+                nnUNet_OUTPUT_DIR = str(Path(self.nnUNet_OUTPUT_DIR, MODEL_DIR.split('/')[1]))
+                os.makedirs(nnUNet_OUTPUT_DIR, exist_ok=True)
+                copy(Path(MODEL_DIR, 'fold_0', 'postprocessing.json'), Path(MODEL_DIR, 'postprocessing.json'))
+                predict_from_folder(
+                    model=MODEL_DIR,
+                    input_folder=self.nnUNet_INPUT_DIR,
+                    output_folder=nnUNet_OUTPUT_DIR,
+                    folds=None,
+                    save_npz=True,
+                    num_threads_preprocessing=NUM_PROCESSES,
+                    num_threads_nifti_save=NUM_PROCESSES,
+                    lowres_segmentations=None,
+                    part_id=0,
+                    num_parts=1,
+                    tta=True,
+                    overwrite_existing=True,
+                    mode="normal",
+                    overwrite_all_in_gpu=None,
+                    mixed_precision=True,
+                    step_size=0.5,
+                    checkpoint_name=nnUNet_CHKPOINT,
+                )
+            
+            nnUNet_nnUNet_OUTPUT_DIRS = [str(Path(self.nnUNet_OUTPUT_DIR, MODEL_DIR.split('/')[1])) for MODEL_DIR in MODEL_DIRS]
+            nnUNet_ENSEMBLE_OUTPUT_DIR = str(Path(self.nnUNet_OUTPUT_DIR, 'Ensembled'))
+            os.makedirs(nnUNet_ENSEMBLE_OUTPUT_DIR, exist_ok=True)
+            merge(nnUNet_nnUNet_OUTPUT_DIRS, nnUNet_ENSEMBLE_OUTPUT_DIR, NUM_PROCESSES, override=True, postprocessing_file=None, store_npz=True)
+
+            prediction = np.squeeze(sitk.GetArrayFromImage(sitk.ReadImage(glob(str(Path(nnUNet_ENSEMBLE_OUTPUT_DIR, '*.nii.gz'))))))
+
         #################################### End of your prediction method. ############################################
         ################################################################################################################
 
