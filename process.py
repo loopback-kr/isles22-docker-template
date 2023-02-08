@@ -15,17 +15,21 @@ from sources.nnunet.inference.ensemble_predictions import merge
 
 MODEL_DIRS = [
 ]
-MODALITIES = ['DWI']
+MODALITIES_PER_MODEL = [
+    {0: 'ADC', },
+    {0: 'DWI', },
+]
+OUTPUT_TYPE = 'UNION' # NORMAL, ENSEMBLE, UNION
 # nnUNet_CHKPOINT='model_best'
 nnUNet_CHKPOINT='model_final_checkpoint'
-NUM_PROCESSES=min(32, os.cpu_count())
+NUM_PROCESSES=min(3, os.cpu_count())
 
 DEFAULT_INPUT_PATH = Path("/input")
 DEFAULT_ALGORITHM_OUTPUT_IMAGES_PATH = Path("/output/images/")
 DEFAULT_ALGORITHM_OUTPUT_FILE_PATH = Path("/output/results.json")
-MODALITIES = { i : modal for i, modal in enumerate(MODALITIES)}
-nnUNet_INPUT_DIR = 'tmp/imagesTs'
-nnUNet_OUTPUT_DIR = 'tmp/outputTs'
+MODALITIES_PER_MODEL = { i : modals for i, modals in enumerate(MODALITIES_PER_MODEL)}
+DEFAULT_nnUNet_INPUT_DIR = 'tmp/imagesTs'
+DEFAULT_nnUNet_OUTPUT_DIR = 'tmp/outputTs'
 
 # todo change with your team-name
 class POBOTRI():
@@ -47,8 +51,8 @@ class POBOTRI():
             self._algorithm_output_path = self._output_path / 'stroke-lesion-segmentation'
             self._output_file = DEFAULT_ALGORITHM_OUTPUT_FILE_PATH
             self._case_results = []
-        self.nnUNet_INPUT_DIR = nnUNet_INPUT_DIR
-        self.nnUNet_OUTPUT_DIR = nnUNet_OUTPUT_DIR
+        self.nnUNet_INPUT_DIR = DEFAULT_nnUNet_INPUT_DIR
+        self.nnUNet_OUTPUT_DIR = DEFAULT_nnUNet_OUTPUT_DIR
 
     def predict(self, input_data):
         """
@@ -75,19 +79,22 @@ class POBOTRI():
         # todo replace with your best model here!
         
         # Convert *.mha to *.nii.gz
-        os.makedirs(self.nnUNet_INPUT_DIR, exist_ok=True)
-        os.makedirs(self.nnUNet_OUTPUT_DIR, exist_ok=True)
-        for k, v in MODALITIES.items():
-            sitk.WriteImage(input_data[f'{v.lower()}_image'], str(Path(self.nnUNet_INPUT_DIR, f'sample_{k:04d}.nii.gz')))
-        
-        if len(MODEL_DIRS) == 1: # Single model prediction
-            MODEL_DIR = MODEL_DIRS[0]
-            nnUNet_OUTPUT_DIR = str(Path(self.nnUNet_OUTPUT_DIR, MODEL_DIR.split('/')[1]))
+        for (_, modals), MODEL_DIR in zip(MODALITIES_PER_MODEL.items(), MODEL_DIRS):
+            MODEL_NAME = MODEL_DIR.split('/')[1]
+            for modal_idx, modal in modals.items():
+                os.makedirs(Path(self.nnUNet_INPUT_DIR, MODEL_NAME), exist_ok=True)
+                sitk.WriteImage(input_data[f'{modal.lower()}_image'], str(Path(self.nnUNet_INPUT_DIR, MODEL_NAME, f'sample_{modal_idx:04d}.nii.gz')))
+
+        # Model inference
+        for MODEL_DIR in MODEL_DIRS:
+            MODEL_NAME = MODEL_DIR.split('/')[1]
+            nnUNet_INPUT_DIR = str(Path(self.nnUNet_INPUT_DIR, MODEL_NAME))
+            nnUNet_OUTPUT_DIR = str(Path(self.nnUNet_OUTPUT_DIR, MODEL_NAME))
+            os.makedirs(nnUNet_OUTPUT_DIR, exist_ok=True)
             copy(Path(MODEL_DIR, 'fold_0', 'postprocessing.json'), Path(MODEL_DIR, 'postprocessing.json'))
-            
             predict_from_folder(
                 model=MODEL_DIR,
-                input_folder=self.nnUNet_INPUT_DIR,
+                input_folder=nnUNet_INPUT_DIR,
                 output_folder=nnUNet_OUTPUT_DIR,
                 folds=None,
                 save_npz=True,
@@ -104,41 +111,29 @@ class POBOTRI():
                 step_size=0.5,
                 checkpoint_name=nnUNet_CHKPOINT,
             )
-
-            prediction = np.squeeze(sitk.GetArrayFromImage(sitk.ReadImage(glob(str(Path(nnUNet_OUTPUT_DIR, '*.nii.gz'))))))
-
-        else: # Ensemble predictions
-            for MODEL_DIR in MODEL_DIRS:
-                nnUNet_OUTPUT_DIR = str(Path(self.nnUNet_OUTPUT_DIR, MODEL_DIR.split('/')[1]))
-                os.makedirs(nnUNet_OUTPUT_DIR, exist_ok=True)
-                copy(Path(MODEL_DIR, 'fold_0', 'postprocessing.json'), Path(MODEL_DIR, 'postprocessing.json'))
-                predict_from_folder(
-                    model=MODEL_DIR,
-                    input_folder=self.nnUNet_INPUT_DIR,
-                    output_folder=nnUNet_OUTPUT_DIR,
-                    folds=None,
-                    save_npz=True,
-                    num_threads_preprocessing=NUM_PROCESSES,
-                    num_threads_nifti_save=NUM_PROCESSES,
-                    lowres_segmentations=None,
-                    part_id=0,
-                    num_parts=1,
-                    tta=True,
-                    overwrite_existing=True,
-                    mode="normal",
-                    overwrite_all_in_gpu=None,
-                    mixed_precision=True,
-                    step_size=0.5,
-                    checkpoint_name=nnUNet_CHKPOINT,
-                )
             
+        if OUTPUT_TYPE == 'ENSEMBLE':
             nnUNet_nnUNet_OUTPUT_DIRS = [str(Path(self.nnUNet_OUTPUT_DIR, MODEL_DIR.split('/')[1])) for MODEL_DIR in MODEL_DIRS]
             nnUNet_ENSEMBLE_OUTPUT_DIR = str(Path(self.nnUNet_OUTPUT_DIR, 'Ensembled'))
             os.makedirs(nnUNet_ENSEMBLE_OUTPUT_DIR, exist_ok=True)
             merge(nnUNet_nnUNet_OUTPUT_DIRS, nnUNet_ENSEMBLE_OUTPUT_DIR, NUM_PROCESSES, override=True, postprocessing_file=None, store_npz=True)
+            
+            prediction = np.squeeze(sitk.GetArrayFromImage(sitk.ReadImage(str(Path(nnUNet_ENSEMBLE_OUTPUT_DIR, 'sample.nii.gz')))))
+        
+        elif OUTPUT_TYPE == 'UNION' and len(MODEL_DIRS) == 2:
+            nnUNet_nnUNet_OUTPUT_DIRS = [str(Path(self.nnUNet_OUTPUT_DIR, MODEL_DIR.split('/')[1])) for MODEL_DIR in MODEL_DIRS]
 
-            prediction = np.squeeze(sitk.GetArrayFromImage(sitk.ReadImage(glob(str(Path(nnUNet_ENSEMBLE_OUTPUT_DIR, '*.nii.gz'))))))
+            prediction_1 = SimpleITK.GetArrayFromImage(SimpleITK.ReadImage(f'{nnUNet_nnUNet_OUTPUT_DIRS[0]}/sample.nii.gz'))
+            prediction_2 = SimpleITK.GetArrayFromImage(SimpleITK.ReadImage(f'{nnUNet_nnUNet_OUTPUT_DIRS[1]}/sample.nii.gz'))
+            union = np.logical_or(prediction_1, prediction_2) # Union
+            union = union.astype(np.int8)
 
+            prediction = np.squeeze(union)
+        elif OUTPUT_TYPE == 'NORMAL':
+            assert len(MODEL_DIRS) == 1
+            prediction = np.squeeze(sitk.GetArrayFromImage(sitk.ReadImage(str(Path(nnUNet_OUTPUT_DIR, 'sample.nii.gz')))))
+        else:
+            raise NotImplementedError
         #################################### End of your prediction method. ############################################
         ################################################################################################################
 
