@@ -1,0 +1,24 @@
+FROM pytorch/pytorch:1.11.0-cuda11.3-cudnn8-devel
+
+SHELL ["/bin/bash", "-c"]
+RUN apt-key adv --keyserver keyserver.ubuntu.com --recv-keys A4B469963BF863CC
+RUN apt update && apt install -y git
+
+# Configure default Pypi repository address and default progress bar style
+RUN mkdir -p ~/.config/pip \
+    && echo -e \
+"[global]\n"\
+"index-url=https://mirror.kakao.com/pypi/simple/\n"\
+"trusted-host=mirror.kakao.com\n"\
+        > ~/.config/pip/pip.conf \
+    && pip install -U pip
+
+WORKDIR /workspace
+
+RUN pip install -U pip
+COPY requirements.txt ${PWD}
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY models ${PWD}/models
+COPY sources ${PWD}/sources
+COPY process.py ${PWD}

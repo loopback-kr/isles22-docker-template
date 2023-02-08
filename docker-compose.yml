@@ -6,15 +6,15 @@ services:
     hostname: isles22_submission_POBOTRI-debug
     build:
       context: ${PWD}
-      shm_size: 128m
-      dockerfile: Dockerfile
+      # shm_size: 128m
+      dockerfile: Dockerfile_debug
     tty: true
     stdin_open: true
     deploy:
       resources:
-        limits:
-          memory: 15g
-          pids: 256
+        # limits:
+          # memory: 15g
+          # pids: 256
         reservations:
           devices:
           - driver: nvidia
@@ -22,8 +22,7 @@ services:
             count: 1
             # device_ids: ['0']
     volumes:
-      # - ${PWD}:/opt/algorithm
+      - ${PWD}:/workspace
       - ${PWD}/test:/input:ro
       # - ${PWD}/output:/output:rw
-    working_dir: /opt/algorithm
-    entrypoint: bash
+    working_dir: /workspace
