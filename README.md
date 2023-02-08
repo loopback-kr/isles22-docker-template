@@ -11,11 +11,3 @@ https://www.youtube.com/watch?v=lLPS_XnzmgM
 * Submission code debugging
     
     `docker compose build && docker compose run -d debug`
-
-* Final test
-
-    `docker build -t isles22_submission_pobotri . && bash test.sh`
-
-* Build and compress to an archive file
-
-    `docker build -t isles22_submission_pobotri . && bash export.sh`

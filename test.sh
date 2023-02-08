@@ -7,7 +7,7 @@ SCRIPTPATH="$( cd "$(dirname "$0")" ; pwd -P )"
 VOLUME_SUFFIX=$(dd if=/dev/urandom bs=32 count=1 | md5sum | cut --delimiter=' ' --fields=1)
 MEM_LIMIT="15g"  # Maximum is currently 30g, configurable in your algorithm image settings on grand challenge
 IMAGE_NAME=isles22_submission_pobotri
-TAG=Task775
+TAG=Task500
 
 docker volume create $IMAGE_NAME-output-$VOLUME_SUFFIX
 
