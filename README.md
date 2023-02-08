@@ -14,8 +14,8 @@ https://www.youtube.com/watch?v=lLPS_XnzmgM
 
 * Final test
 
-    `bash test.sh`
+    `docker build -t isles22_submission_pobotri . && bash test.sh`
 
 * Build and compress to an archive file
 
-    `bash export.sh`
+    `docker build -t isles22_submission_pobotri . && bash export.sh`
