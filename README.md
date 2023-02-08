@@ -14,8 +14,8 @@ https://www.youtube.com/watch?v=lLPS_XnzmgM
 
 * Final test
 
-    `docker build -t isles22_submission_pobotri . && bash test.sh`
+    `bash test.sh`
 
-* Build and compress to *.xz file
+* Build and compress to an archive file
 
-    `docker build -t isles22_submission_pobotri . && time docker save isles22_submission_pobotri | xz -T0 -c > Task770_ISLES_preprocessed_DWI.tar.xz`
+    `bash export.sh`
