@@ -1,6 +1,10 @@
 **/__pycache__/
 **/.git/
 **/*.pyc
+containers/
+tmp/
+test/
+.vscode/
 models/**/validation_raw/
 models/**/validation_raw_postprocessed/
 models/**/gt_niftis/
