@@ -12,9 +12,9 @@ import nibabel as nib, SimpleITK as sitk
 sys.path.append('sources')
 from sources.nnunet.inference.predict import predict_from_folder
 
-MODEL_DIR = 'models/Task770_ISLES_preprocessed_DWI/nnUNetTrainerV2__nnUNetPlans_pretrained_nnUNetData_plans_v2.1'
+MODEL_DIR = 'models/Task500/nnUNetTrainerV2__nnUNetPlans_pretrained_nnUNetData_plans_v2.1'
 MODALITIES = ['DWI']
-nnUNet_CHKPOINT='model_best'
+# nnUNet_CHKPOINT='model_best'
 nnUNet_CHKPOINT='model_final_checkpoint'
 NUM_PROCESSES=min(32, os.cpu_count())
 
