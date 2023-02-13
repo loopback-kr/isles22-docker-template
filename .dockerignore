@@ -8,4 +8,5 @@ test/
 models/**/validation_raw/
 models/**/validation_raw_postprocessed/
 models/**/gt_niftis/
+models.bak/
 *.tar*
