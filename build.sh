@@ -1,5 +1,5 @@
 IMAGE_NAME=isles22_submission_pobotri
-TAG=Task793
+TAG=Task000
 
 time docker build -t $IMAGE_NAME:$TAG . 
 
@@ -34,5 +34,5 @@ else
     exit
 fi
 docker volume rm $IMAGE_NAME-output-$VOLUME_SUFFIX
-
+echo "Exporting ${IMAGE_NAME}:${TAG}"
 time docker save $IMAGE_NAME:$TAG | xz -T0 -c > containers/${TAG}.tar.xz
