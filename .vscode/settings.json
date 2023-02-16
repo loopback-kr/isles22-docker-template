@@ -1,4 +1,4 @@
 {
     "search.useGlobalIgnoreFiles": true,
-    "search.useIgnoreFiles": true
+    "search.useIgnoreFiles": false
 }
