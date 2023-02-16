@@ -7,7 +7,7 @@ services:
     build:
       context: ${PWD}
       # shm_size: 128m
-      dockerfile: Dockerfile_debug
+      dockerfile: Dockerfile-debug
     tty: true
     stdin_open: true
     deploy:
@@ -22,7 +22,6 @@ services:
             count: 1
             # device_ids: ['0']
     volumes:
-      - ${PWD}:/workspace
+      - ${PWD}:/opt/algorithm
       - ${PWD}/test:/input:ro
       # - ${PWD}/output:/output:rw
-    working_dir: /workspace
