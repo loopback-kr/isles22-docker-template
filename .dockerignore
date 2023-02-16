@@ -5,8 +5,12 @@ containers/
 tmp/
 test/
 .vscode/
+models.bak/
+*.tar*
 models/**/validation_raw/
 models/**/validation_raw_postprocessed/
 models/**/gt_niftis/
-models.bak/
-*.tar*
+models/**/debug.json
+models/**/*.txt
+models/**/*.png
+models/**/*best*

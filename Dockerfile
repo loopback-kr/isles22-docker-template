@@ -18,7 +18,5 @@ RUN pip install --no-cache-dir --user -r requirements.txt
 COPY --chown=algorithm:algorithm models ./models
 COPY --chown=algorithm:algorithm sources ./sources
 COPY --chown=algorithm:algorithm *.py ./
-RUN python remove_orphans.py
-RUN rm requirements.txt remove_orphans.py
 
 ENTRYPOINT python -m process $0 $@

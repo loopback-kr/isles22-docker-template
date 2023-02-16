@@ -22,6 +22,6 @@ services:
             count: 1
             # device_ids: ['0']
     volumes:
-      - ${PWD}:/opt/algorithm
+      - ${PWD}:/workspace:rw # for commit
       - ${PWD}/test:/input:ro
       # - ${PWD}/output:/output:rw

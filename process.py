@@ -14,12 +14,15 @@ from sources.nnunet.inference.predict import predict_from_folder
 from sources.nnunet.inference.ensemble_predictions import merge
 
 MODEL_DIRS = [
+    'models/Task797_ISLES22_prep_DWI(Multitask_sumloss)-FINETUNE-BraTS2021_FLAIR_Necrotic(Multitask_with_FLAIR_Necrotic_FLAIR_Peritumoral_FLAIR_Enhancing_meanloss)/nnUNetTrainerV2__nnUNetPlans_pretrained_nnUNetData_plans_v2.1',
 ]
 MODALITIES_PER_MODEL = [
-    {0: 'ADC', },
-    {0: 'DWI', },
+    {0: 'DWI',},
+    # {0: 'ADC', 1: 'DWI',},
+    # {0: 'ADC', 1: 'DWI',},
+    # {0: 'ADC', 1: 'DWI',},
 ]
-OUTPUT_TYPE = 'UNION' # NORMAL, ENSEMBLE, UNION
+OUTPUT_TYPE = 'NORMAL' # NORMAL, ENSEMBLE, UNION
 # nnUNet_CHKPOINT='model_best'
 nnUNet_CHKPOINT='model_final_checkpoint'
 NUM_PROCESSES=min(3, os.cpu_count())
