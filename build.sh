@@ -1,5 +1,5 @@
 IMAGE_NAME=isles22_submission_pobotri
-TAG=Task000
+TAG="UNION_Task511_ISLES_d_m_div2_dwionly_ENSEMBLE_Task762_Task763_Task764_Task765"
 
 time docker build -t $IMAGE_NAME:$TAG . 
 

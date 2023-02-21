@@ -11,28 +11,62 @@ import nibabel as nib, SimpleITK as sitk
 # nnUNet
 sys.path.append('sources')
 from sources.nnunet.inference.predict import predict_from_folder
-from sources.nnunet.inference.ensemble_predictions import merge
+from prediction_combinations import *
 
-MODEL_DIRS = [
-    'models/Task797_ISLES22_prep_DWI(Multitask_sumloss)-FINETUNE-BraTS2021_FLAIR_Necrotic(Multitask_with_FLAIR_Necrotic_FLAIR_Peritumoral_FLAIR_Enhancing_meanloss)/nnUNetTrainerV2__nnUNetPlans_pretrained_nnUNetData_plans_v2.1',
-]
+
+MODEL_DIRS = {
+    0: 'models/Task511_ISLES_d_m_div2_dwionly/nnUNetTrainerV2__nnUNetPlans_pretrained_nnUNetData_plans_v2.1',
+    1: 'models/Task762_ISLES22_prep_ADCDWI-FINETUNE-BraTS2021_T1T1_Necrotic(Multitask_sumloss)/nnUNetTrainerV2__nnUNetPlans_pretrained_nnUNetData_plans_v2.1',
+    2: 'models/Task763_ISLES22_prep_ADCDWI-FINETUNE-BraTS2021_T1CET1CE_Necrotic(Multitask_sumloss)/nnUNetTrainerV2__nnUNetPlans_pretrained_nnUNetData_plans_v2.1',
+    3: 'models/Task764_ISLES22_prep_ADCDWI-FINETUNE-BraTS2021_T2T2_Necrotic(Multitask_sumloss)/nnUNetTrainerV2__nnUNetPlans_pretrained_nnUNetData_plans_v2.1',
+    4: 'models/Task765_ISLES22_prep_ADCDWI-FINETUNE-BraTS2021_FLAIRFLAIR_Necrotic(Multitask_sumloss)/nnUNetTrainerV2__nnUNetPlans_pretrained_nnUNetData_plans_v2.1',
+}
 MODALITIES_PER_MODEL = [
     {0: 'DWI',},
-    # {0: 'ADC', 1: 'DWI',},
-    # {0: 'ADC', 1: 'DWI',},
-    # {0: 'ADC', 1: 'DWI',},
+    {0: 'ADC', 1: 'DWI',},
+    {0: 'ADC', 1: 'DWI',},
+    {0: 'ADC', 1: 'DWI',},
+    {0: 'ADC', 1: 'DWI',},
 ]
-OUTPUT_TYPE = 'NORMAL' # NORMAL, ENSEMBLE, UNION
+MODEL_COMBINATION = {ensemble_max: [{ensemble_mean: [1, 2, 3, 4]}, 0]} # TODO: ensemble(ensemble(0, 1), ensemble(2, 3)) 이런식이면 덮여씌워져서 안됨. 폴더 다르게 해야함. 같은 nested layer단에서 같은 combination을 하면 안됨!(같은 저장 폴더를 가진채로)
+
+
 # nnUNet_CHKPOINT='model_best'
 nnUNet_CHKPOINT='model_final_checkpoint'
-NUM_PROCESSES=min(3, os.cpu_count())
-
 DEFAULT_INPUT_PATH = Path("/input")
 DEFAULT_ALGORITHM_OUTPUT_IMAGES_PATH = Path("/output/images/")
 DEFAULT_ALGORITHM_OUTPUT_FILE_PATH = Path("/output/results.json")
 MODALITIES_PER_MODEL = { i : modals for i, modals in enumerate(MODALITIES_PER_MODEL)}
-DEFAULT_nnUNet_INPUT_DIR = 'tmp/imagesTs'
-DEFAULT_nnUNet_OUTPUT_DIR = 'tmp/outputTs'
+NUM_PROCESSES=min(3, os.cpu_count())
+nnUNet_INPUT_DIR = 'tmp/imagesTs'
+nnUNet_OUTPUT_DIR = 'tmp/outputTs'
+
+
+def nnunet_inference(model_idx: int):
+    model_dir = MODEL_DIRS[model_idx]
+    model_name = model_dir.split('/')[1]
+    os.makedirs(str(Path(nnUNet_OUTPUT_DIR, model_name)), exist_ok=True)
+    copy(Path(model_dir, 'fold_0', 'postprocessing.json'), Path(model_dir, 'postprocessing.json'))
+    predict_from_folder(
+        model=model_dir,
+        input_folder=str(Path(nnUNet_INPUT_DIR, model_name)),
+        output_folder=str(Path(nnUNet_OUTPUT_DIR, model_name)),
+        folds=None,
+        save_npz=True,
+        num_threads_preprocessing=NUM_PROCESSES,
+        num_threads_nifti_save=NUM_PROCESSES,
+        lowres_segmentations=None,
+        part_id=0,
+        num_parts=1,
+        tta=True,
+        overwrite_existing=True,
+        mode="normal",
+        overwrite_all_in_gpu=None,
+        mixed_precision=True,
+        step_size=0.5,
+        checkpoint_name=nnUNet_CHKPOINT,
+    )
+    return join(nnUNet_OUTPUT_DIR, model_name)
 
 # todo change with your team-name
 class POBOTRI():
@@ -54,8 +88,6 @@ class POBOTRI():
             self._algorithm_output_path = self._output_path / 'stroke-lesion-segmentation'
             self._output_file = DEFAULT_ALGORITHM_OUTPUT_FILE_PATH
             self._case_results = []
-        self.nnUNet_INPUT_DIR = DEFAULT_nnUNet_INPUT_DIR
-        self.nnUNet_OUTPUT_DIR = DEFAULT_nnUNet_OUTPUT_DIR
 
     def predict(self, input_data):
         """
@@ -82,61 +114,17 @@ class POBOTRI():
         # todo replace with your best model here!
         
         # Convert *.mha to *.nii.gz
-        for (_, modals), MODEL_DIR in zip(MODALITIES_PER_MODEL.items(), MODEL_DIRS):
-            MODEL_NAME = MODEL_DIR.split('/')[1]
+        for (_, modals), (_, model_dir) in zip(MODALITIES_PER_MODEL.items(), MODEL_DIRS.items()):
+            model_name = model_dir.split('/')[1]
             for modal_idx, modal in modals.items():
-                os.makedirs(Path(self.nnUNet_INPUT_DIR, MODEL_NAME), exist_ok=True)
-                sitk.WriteImage(input_data[f'{modal.lower()}_image'], str(Path(self.nnUNet_INPUT_DIR, MODEL_NAME, f'sample_{modal_idx:04d}.nii.gz')))
+                os.makedirs(Path(nnUNet_INPUT_DIR, model_name), exist_ok=True)
+                sitk.WriteImage(input_data[f'{modal.lower()}_image'], str(Path(nnUNet_INPUT_DIR, model_name, f'sample_{modal_idx:04d}.nii.gz')))
 
         # Model inference
-        for MODEL_DIR in MODEL_DIRS:
-            MODEL_NAME = MODEL_DIR.split('/')[1]
-            nnUNet_INPUT_DIR = str(Path(self.nnUNet_INPUT_DIR, MODEL_NAME))
-            nnUNet_OUTPUT_DIR = str(Path(self.nnUNet_OUTPUT_DIR, MODEL_NAME))
-            os.makedirs(nnUNet_OUTPUT_DIR, exist_ok=True)
-            copy(Path(MODEL_DIR, 'fold_0', 'postprocessing.json'), Path(MODEL_DIR, 'postprocessing.json'))
-            predict_from_folder(
-                model=MODEL_DIR,
-                input_folder=nnUNet_INPUT_DIR,
-                output_folder=nnUNet_OUTPUT_DIR,
-                folds=None,
-                save_npz=True,
-                num_threads_preprocessing=NUM_PROCESSES,
-                num_threads_nifti_save=NUM_PROCESSES,
-                lowres_segmentations=None,
-                part_id=0,
-                num_parts=1,
-                tta=True,
-                overwrite_existing=True,
-                mode="normal",
-                overwrite_all_in_gpu=None,
-                mixed_precision=True,
-                step_size=0.5,
-                checkpoint_name=nnUNet_CHKPOINT,
-            )
-            
-        if OUTPUT_TYPE == 'ENSEMBLE':
-            nnUNet_nnUNet_OUTPUT_DIRS = [str(Path(self.nnUNet_OUTPUT_DIR, MODEL_DIR.split('/')[1])) for MODEL_DIR in MODEL_DIRS]
-            nnUNet_ENSEMBLE_OUTPUT_DIR = str(Path(self.nnUNet_OUTPUT_DIR, 'Ensembled'))
-            os.makedirs(nnUNet_ENSEMBLE_OUTPUT_DIR, exist_ok=True)
-            merge(nnUNet_nnUNet_OUTPUT_DIRS, nnUNet_ENSEMBLE_OUTPUT_DIR, NUM_PROCESSES, override=True, postprocessing_file=None, store_npz=True)
-            
-            prediction = np.squeeze(sitk.GetArrayFromImage(sitk.ReadImage(str(Path(nnUNet_ENSEMBLE_OUTPUT_DIR, 'sample.nii.gz')))))
-        
-        elif OUTPUT_TYPE == 'UNION' and len(MODEL_DIRS) == 2:
-            nnUNet_nnUNet_OUTPUT_DIRS = [str(Path(self.nnUNet_OUTPUT_DIR, MODEL_DIR.split('/')[1])) for MODEL_DIR in MODEL_DIRS]
+        for model, params in MODEL_COMBINATION.items():
+            output_dir = model(nnunet_inference, params)
+        prediction = np.squeeze(sitk.GetArrayFromImage(sitk.ReadImage(f'{output_dir}/sample.nii.gz')))
 
-            prediction_1 = SimpleITK.GetArrayFromImage(SimpleITK.ReadImage(f'{nnUNet_nnUNet_OUTPUT_DIRS[0]}/sample.nii.gz'))
-            prediction_2 = SimpleITK.GetArrayFromImage(SimpleITK.ReadImage(f'{nnUNet_nnUNet_OUTPUT_DIRS[1]}/sample.nii.gz'))
-            union = np.logical_or(prediction_1, prediction_2) # Union
-            union = union.astype(np.int8)
-
-            prediction = np.squeeze(union)
-        elif OUTPUT_TYPE == 'NORMAL':
-            assert len(MODEL_DIRS) == 1
-            prediction = np.squeeze(sitk.GetArrayFromImage(sitk.ReadImage(str(Path(nnUNet_OUTPUT_DIR, 'sample.nii.gz')))))
-        else:
-            raise NotImplementedError
         #################################### End of your prediction method. ############################################
         ################################################################################################################
 
